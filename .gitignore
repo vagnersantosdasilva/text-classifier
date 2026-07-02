@@ -50,4 +50,6 @@ Thumbs.db
 
 #Configurações de ambiente
 /.venv
+/venv
+.venv
 .env
