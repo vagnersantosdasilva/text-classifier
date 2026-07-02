@@ -1,0 +1,9 @@
+pandas
+scikit-learn
+nltk
+unidecode
+werkzeug
+numpy
+flask
+mysql-connector-python
+python-dotenv
