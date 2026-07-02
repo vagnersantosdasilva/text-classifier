@@ -49,5 +49,5 @@ Thumbs.db
 *.wmv
 
 #Configurações de ambiente
-/venv
+/.venv
 .env
