@@ -47,9 +47,11 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
+*extra.md
 
 #Configurações de ambiente
 /.venv
 /venv
 .venv
 .env
+

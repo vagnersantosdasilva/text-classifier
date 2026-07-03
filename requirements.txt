@@ -7,3 +7,5 @@ numpy
 flask
 mysql-connector-python
 python-dotenv
+SQLAlchemy
+flask_sqlalchemy
