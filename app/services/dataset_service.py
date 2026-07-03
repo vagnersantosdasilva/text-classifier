@@ -1,12 +1,14 @@
 from typing import List
 
-import repository
 from app.repository.dataset_repository import DatasetRepository
 from app.models import Dataset
 from app.exceptions import DatasetInvalidoError, DatasetDuplicadoError
 from werkzeug.datastructures import FileStorage
 from app.utils import validate_csv_content  # corrigido
 import traceback
+
+from exceptions import ResourceNotFoundError
+
 
 class DatasetService:
     def __init__(self):
@@ -55,3 +57,20 @@ class DatasetService:
 
     def list_datasets(self) -> List[Dataset]:
         return self.repository.find_all()
+
+    def get_by_id(self, dataset_id: int) -> Dataset:
+        dataset_response = self.repository.find_by_id(dataset_id)
+        if dataset_response is None:
+            raise ResourceNotFoundError("O dataset não foi encontrado!")
+        return dataset_response
+
+    def remove_dataset(self, dataset_id: int) ->bool:
+        #Dataset ou None
+        dataset = self.repository.find_by_id(dataset_id)
+        # Verificação de retorno para desencadear a ação
+        if dataset:
+            self.repository.delete(dataset)
+            return True  # Ação executada com sucesso
+
+        raise ResourceNotFoundError("O dataset não foi encontrado!")
+

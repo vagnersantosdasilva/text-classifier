@@ -19,6 +19,10 @@ class AppException(Exception):
             "detalhes": self.extra
         }
 
+#-----------Exceções recurso não encontrado ----------
+class ResourceNotFoundError(AppException):
+    def __init__(self, message="Recurso não foi encontrado", **kwargs):
+        super().__init__(message, status_code=404, **kwargs)
 
 # ---------- Exceções relacionadas a Dataset ----------
 class DatasetError(AppException):

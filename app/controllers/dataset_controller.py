@@ -3,6 +3,7 @@
 from flask import Blueprint, request, jsonify
 from app.services.dataset_service import DatasetService
 from app.exceptions import DatasetInvalidoError, DatasetDuplicadoError, AppException
+from exceptions import ResourceNotFoundError
 
 # Cria o Blueprint com prefixo /api/datasets
 dataset_bp = Blueprint('dataset', __name__, url_prefix='/api/dataset')
@@ -64,6 +65,39 @@ def get_all_datasets():
         datasets_json = [dataset.to_dict() for dataset in datasets_objetos]
 
         return jsonify(datasets_json), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # Isso garante que você veja o erro real no terminal se algo falhar
+        return jsonify({"erro": "Erro interno no servidor", "detalhe": str(e)}), 500
+
+
+
+@dataset_bp.route('/<int:dataset_id>', methods=['GET'])
+def get_dataset(dataset_id: int):
+    try:
+        service = DatasetService()
+        dataset = service.get_by_id(dataset_id)
+        return jsonify(dataset.to_dict()), 200
+
+    except ResourceNotFoundError as e:
+        return jsonify(e.to_dict()), e.status_code
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # Isso garante que você veja o erro real no terminal se algo falhar
+        return jsonify({"erro": "Erro interno no servidor", "detalhe": str(e)}), 500
+
+
+@dataset_bp.route('/<int:dataset_id>', methods=['DELETE'])
+def remove_dataset(dataset_id: int):
+    try:
+        service = DatasetService()
+        response = service.remove_dataset(dataset_id)
+        return jsonify({"mensagem": f"Dataset com ID {dataset_id} deletado com sucesso."}), 200
+
+    except ResourceNotFoundError as e:
+        return jsonify(e.to_dict()), e.status_code
 
     except Exception as e:
         import traceback

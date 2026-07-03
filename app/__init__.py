@@ -18,8 +18,11 @@ def create_app():
     db.init_app(app)
 
     # Registra blueprints (importação local para evitar circular)
-    from app.controlls import dataset_bp
+    from app.controllers import dataset_bp
     app.register_blueprint(dataset_bp)
+
+    from app.controllers import data_training_bp
+    app.register_blueprint(data_training_bp)
 
     with app.app_context():
         db.create_all()
