@@ -1,13 +1,13 @@
 from typing import List
 
 from app.repository.dataset_repository import DatasetRepository
-from app.models import Dataset
 from app.exceptions import DatasetInvalidoError, DatasetDuplicadoError
 from werkzeug.datastructures import FileStorage
 from app.utils import validate_csv_content  # corrigido
 import traceback
 
-from exceptions import ResourceNotFoundError
+from app.exceptions import ResourceNotFoundError
+from app.models import Dataset
 
 
 class DatasetService:

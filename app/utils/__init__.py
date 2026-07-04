@@ -1,6 +1,9 @@
 import csv
 import io
-from typing import Tuple
+from typing import Tuple, List
+import unidecode
+import nltk
+import string
 
 def validate_csv_content(file_bytes: bytes, separator: str) -> Tuple[bool, str]:
     """
@@ -59,15 +62,16 @@ def validate_csv_content(file_bytes: bytes, separator: str) -> Tuple[bool, str]:
 
     return True, ""
 
-def file_validation(file_path,separator):
+
+def file_validation(file_path, separator):
     try:
-        file = open(file_path,'r')
-        reader = csv.reader(file,delimiter=separator)
+        file = open(file_path, 'r')
+        reader = csv.reader(file, delimiter=separator)
         number_collums = len(next(reader))
         file.seek(0)
         for row in reader:
             # print(row)
-            if len(row) != number_collums :
+            if len(row) != number_collums:
                 file.close()
                 return False
         file.close()
@@ -76,4 +80,44 @@ def file_validation(file_path,separator):
         return False
 
 
+def replace_utf8(list_str: List[str]) -> List[str]:
+    result = []
+    for phrase in list_str:
+        result.append(phrase.replace("\\xc3\\xa7", "ç").replace("\\xc3\\xba", "ú").replace("\\xc3\\xa1", "á").replace(
+            "\\xc3\\xaa",
+            "ê").replace(
+            "\\xc3\\xa3", "ã").replace("\\xc3\\xa9", "é").replace("\\xc3\\xb5", "õ").replace("\\xc3\\xad",
+                                                                                             "í").replace(
+            "\\xc3\\xa0", "à").replace("\\xc3\\xb3", "ó").replace("\\xc3\\x83", "Ã").replace("\\xc3\\xb4", "ô"))
+    return result
+
+
+def filter_unidecode(lista_de_frases):
+    palavras_sem_acentos = [unidecode.unidecode(texto) for (texto) in lista_de_frases]
+    return palavras_sem_acentos
+
+def remove_stop_words(texts, language='portuguese'):
+    stemmer = nltk.RSLPStemmer()
+    exclude = set(string.punctuation)
+    descriptions = texts.description
+    descriptions_unidecode_filtered = filter_unidecode(descriptions)
+    token_white_space = nltk.tokenize.WhitespaceTokenizer()
+    stop_words = nltk.corpus.stopwords.words(language)
+    stop_words_unidecode_filtered = filter_unidecode(stop_words)
+    processed_sentence = list()
+    for sentence in descriptions_unidecode_filtered:
+        new_sentence = list()
+        sentence_words = token_white_space.tokenize(sentence)
+        for word in sentence_words:
+            word = word.lower()
+            if word not in stop_words_unidecode_filtered:
+                word_ = ''.join(ch for ch in word if ch not in exclude)
+                #if len(word_) >0 : word_ = stemmer.stem(word_)
+                if len(word_) > 0: word_ = word_
+                new_sentence.append(word_)
+        processed_sentence.append(' '.join(new_sentence))
+
+    texts['processed'] = processed_sentence
+    #print(texts['processed'])
+    return texts, None
 

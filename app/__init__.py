@@ -1,11 +1,6 @@
 # app/__init__.py
 from flask import Flask
 from app.extensions import db
-#from dotenv import load_dotenv
-#import os
-
-#load_dotenv()  # Carrega variáveis do .env para o ambiente
-
 
 def create_app():
     app = Flask(__name__)
