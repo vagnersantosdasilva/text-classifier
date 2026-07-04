@@ -49,9 +49,12 @@ Thumbs.db
 *.wmv
 *extra.md
 
-#Configurações de ambiente
-/.venv
-/venv
-.venv
+# Configurações de ambiente e interpretador
+.venv/
+venv/
 .env
 
+# Cache do Python (Ignora em qualquer nível de pasta)
+**/__pycache__/
+*.py[cod]
+*$py.class
