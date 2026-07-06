@@ -1,50 +1,45 @@
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
+from flask import current_app
 from mysql.ai.ml import classifier
 from sqlalchemy.dialects.mysql import BIGINT
 
-from app.exceptions import ResourceNotFoundError, AppException
+from app.exceptions import ResourceNotFoundError, AppException, TreinamentoError
 from app.models import TrainingStatus, Training, Dataset
 from app.repository.training_repository import TrainingRepository
+from app.repository.dataset_repository import DatasetRepository
 
-
-import string
-import threading
-
-from pandas import DataFrame
-from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import train_test_split, cross_validate, LeaveOneOut, KFold
+from sklearn.model_selection import cross_validate, LeaveOneOut
 from sklearn.naive_bayes import MultinomialNB
-from sklearn import tree, metrics, model_selection
-import nltk
-from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer, TfidfVectorizer
+from sklearn import tree
+from sklearn.feature_extraction.text import  TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import VotingClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-import unidecode
-from werkzeug.utils import secure_filename
-import repository
+
+import nltk
 import utils
 import pandas as pd
 import io
-from sklearn.model_selection import cross_val_score
 import numpy as np
 
-from repository.dataset_repository import DatasetRepository
+
 
 nltk.download('rslp')
 
-
-
 # Instancie o pool fora da classe (escopo global do módulo do service)
 # para que todas as requisições usem a mesma fila
-training_executor = ThreadPoolExecutor(max_workers=2)
+max_workers = 2
+training_executor = ThreadPoolExecutor(max_workers)
+
 
 class DataTrainingService:
     def __init__(self):
         self.repository = TrainingRepository()
         self.dataset_repository = DatasetRepository()
+
 
     def decide_training(self, clf, x, y):
         lines = x.shape[0];
@@ -58,10 +53,10 @@ class DataTrainingService:
         if lines < 1000:
 
             scores = cross_validate(clf, x, y, cv=10, scoring=scoring)
-            precision = np.mean([100 * round(r, 4) for r in scores['test_precision_macro']])
-            recall = np.mean([100 * round(r, 4) for r in scores['test_recall_macro']])
-            accuracy = np.mean([100 * round(r, 4) for r in scores['test_accuracy']])
-            f1 = np.mean([100 * round(r, 4) for r in scores['test_f1_macro']])
+            precision = np.mean([round(r, 4) for r in scores['test_precision_macro']])
+            recall = np.mean([round(r, 4) for r in scores['test_recall_macro']])
+            accuracy = np.mean([round(r, 4) for r in scores['test_accuracy']])
+            f1 = np.mean([round(r, 4) for r in scores['test_f1_macro']])
             # accuracy =  np.mean(cross_val_score(clf,x,y,cv=cv,  scoring="accuracy"))
             # precision = np.mean (cross_val_score(clf,x,y,cv=cv,  scoring='precision'))
             # recall = np.mean (cross_val_score(clf,x,y,cv=cv, scoring='recall'))
@@ -69,35 +64,48 @@ class DataTrainingService:
             return accuracy, precision, recall, f1
         else:
             scores = cross_validate(clf, x, y, cv=5, scoring=scoring)
-            precision = np.mean([100 * round(r, 4) for r in scores['test_precision_macro']])
-            recall = np.mean([100 * round(r, 4) for r in scores['test_recall_macro']])
-            accuracy = np.mean([100 * round(r, 4) for r in scores['test_accuracy']])
-            f1 = np.mean([100 * round(r, 4) for r in scores['test_f1_macro']])
+            precision = np.mean([ round(r, 4) for r in scores['test_precision_macro']])
+            recall = np.mean([round(r, 4) for r in scores['test_recall_macro']])
+            accuracy = np.mean([ round(r, 4) for r in scores['test_accuracy']])
+            f1 = np.mean([round(r, 4) for r in scores['test_f1_macro']])
             return accuracy, precision, recall, f1
 
 
-    def create_training(self, dataset_id:BIGINT)->Training:
-        #Não pode haver mais de 1 treinamento concorrente com o mesmo dataset
-
-
+    def create_training(self, dataset_id: BIGINT) -> Training:
+        # Não pode haver mais de 1 treinamento concorrente com o mesmo dataset
         dataset = self.dataset_repository.find_by_id(dataset_id)
+
         if dataset:
+            count_training = self.repository.count_active_by_dataset(dataset_id)
+
+            if count_training >= 1:
+                raise TreinamentoError("Existe um treinamento ativo para esse datase. Aguarde a conclusão")
+
             training_create = Training()
             training_create.id_dataset = dataset_id
 
-            #Pedente aguardando inicio de treinamento
-            training_create.status = Training.Status.PENDING
+            # Pedente aguardando inicio de treinamento
+            training_create.status = TrainingStatus.PENDING
 
-            traing_response = repository.save(training_create)
+            training_response = self.repository.save(training_create)
 
-            # Adiciona na fila do Pool. Se já tiver 2 rodando, essa aguarda.
-            training_executor.submit(self.start_training,traing_response, dataset_id)
+            # Captura a instância real do app Flask para passar para a thread
+            flask_app = current_app._get_current_object()
 
-            return traing_response
+            # PASSAMOS: o método, o app, o ID do treinamento e o ID do dataset
+            training_executor.submit(
+                self.start_training,
+                flask_app,
+                training_response.id,
+                dataset_id
+            )
+
+            return training_response
         else:
             raise ResourceNotFoundError("Dataset não encontrado para treinamento!")
 
-    def start_training(self, training_status: Training, dataset_id: BIGINT):
+
+    def start_training(self, app, training_id: BIGINT, dataset_id: BIGINT):
         '''TODO:
         - Pegar o id do dataset
         - Buscar o dataset no banco de dados
@@ -107,76 +115,104 @@ class DataTrainingService:
         - Retornar o status
         '''
 
-        dataset = self.dataset_repository.find_by_id(dataset_id)
+        # Cria o contexto do Flask dentro desta thread isolada
+        with app.app_context():
+            training_status = None
+            try:
+                # Busca as instâncias dentro da nova sessão da thread
+                training_status = self.repository.find_by_id(training_id)
+                dataset = self.dataset_repository.find_by_id(dataset_id)
 
-        if dataset:
-            #print(dataset.file_content)
-            data_frame, error_format = self.format_dataframe(dataset)
+                if dataset is None or training_status is None:
+                    raise ResourceNotFoundError("Dataset ou Treinamento não encontrado")
 
-            #Retorna o dataframe com um novo campo 'processed'
-            new_content, error_stop_words = utils.remove_stop_words(data_frame)
+                training_status.id_dataset = dataset.id
+                training_status.status = TrainingStatus.PROCESSING
+                self.repository.save(training_status)
 
-            tf_idf_X = TfidfVectorizer().fit_transform(new_content.processed)
-            x = tf_idf_X
-            y = new_content.priority
+                data_frame, error_format = self.format_dataframe(dataset)
+                if error_format:
+                    raise TreinamentoError(f"Erro no dataframe: {error_format}")
 
-            gnb_clf = MultinomialNB()
-            svm_clf = SVC()
-            knn_clf = KNeighborsClassifier(n_neighbors=3)
-            tree_clf = tree.DecisionTreeClassifier()
-            rnd_clf = RandomForestClassifier()
-            vc1 = VotingClassifier(
-                estimators=([
-                    ('tree_clf', tree_clf),
-                    ('gnb_clf', gnb_clf),
-                    ('rnd_clf', rnd_clf),
-                    ('svm_clf', svm_clf),
-                    ('knn_clf', knn_clf)]
-                ), voting='hard'
-            )
+                new_content, error_stop_words = utils.remove_stop_words(data_frame)
 
-            accuracy, precision, recall, f1 = self.decide_training(vc1, x, y)
+                # CORREÇÃO: Separar a instância do vetorizador para podermos salvá-la depois
+                vectorizer_instance = TfidfVectorizer()
+                x = vectorizer_instance.fit_transform(new_content.processed)
+                y = new_content.priority
 
-            training_status.id_dataset = dataset_id
-            training_status.status = TrainingStatus.PROCESSING
+                vc1 = VotingClassifier(
+                    estimators=[
+                        ('tree_clf', tree.DecisionTreeClassifier()),
+                        ('gnb_clf', MultinomialNB()),
+                        ('rnd_clf', RandomForestClassifier()),
+                        ('svm_clf', SVC()),
+                        ('knn_clf', KNeighborsClassifier(n_neighbors=3))
+                    ], voting='hard'
+                )
 
-            repository.update_training(training_status)
+                accuracy, precision, recall, f1 = self.decide_training(vc1, x, y)
+                predictor = vc1.fit(x, y)
 
-            predictor = vc1.fit(x, y)
+                training_status.f1_score = float(f1)
+                training_status.accuracy_score = float(accuracy)
+                training_status.precision = float(precision)
+                training_status.recall = float(recall)
 
-            #training_status = Training()
+                # Serializa o objeto do modelo (predictor) em bytes e o vetorizador
+                import pickle
+                training_status.trained_model = pickle.dumps(predictor)
+                training_status.vectorizer = pickle.dumps(vectorizer_instance)  # Nome correto da coluna
+
+                training_status.status = TrainingStatus.COMPLETED
+                self.repository.save(training_status)
+                print(f"----> TREINAMENTO {training_id} CONCLUÍDO COM SUCESSO!")
+
+            except Exception as e:
+                print(f"\n[ERRO CRÍTICO NO TREINAMENTO {training_id}]: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                from app.extensions import db
+                try:
+                    db.session.rollback()
+                except:
+                    pass
+                # CORREÇÃO: Atualiza o objeto existente em vez de criar um novo quebrado
+                if training_status:
+                    try:
+                        training_status.status = TrainingStatus.FAILED
+                        self.repository.save(training_status)
+                    except Exception as db_err:
+                        print(f"Erro ao salvar status FAILED: {db_err}")
 
 
-
-            training_status.f1_score = float(f1)
-            training_status.accuracy_score = float(accuracy)
-            training_status.precision = float(precision)
-            training_status.recall = float(recall)
-            #training_status.cross_val_score_mean = float(cross_val_score)
-            #Montando modelo de classificador
-            classifier.predict = predictor
-            classifier.data_frame = new_content
-
-            #Salvando modelo e atualizando status
-            training_status.trained_model = classifier
-            training_status.status = Training.Status.COMPLETED
-
-            repository.update_training(training_status)
-
-        else:
-            raise ResourceNotFoundError("Dataset não encontrado!")
+    def get_status_training(self, training_id: int) -> TrainingStatus:
+        training_response = self.repository.find_by_id(training_id)
+        if training_response:
+            return training_response.status
+        raise ResourceNotFoundError("O treinamento não foi encontrado!")
 
 
+    def get_training_by_dataset(self, dataset_id: int) -> List[Training]:
+        if self.dataset_repository.find_by_id(dataset_id) is None:
+            raise ResourceNotFoundError('Dataset pesquisado não foi encontrado')
+        return self.repository.find_by_dataset_id(dataset_id)
 
 
-    def stop_training(self):
-        pass
+    def get_training_by_id(self, training_id: int) -> Training:
+        training = self.repository.find_by_id(training_id)
+        if training is None:
+            raise ResourceNotFoundError('Treinamento pesquisado não foi encontrado')
+        return training
 
-    def get_status_training(self):
-        pass
 
-    def save_training(self, training :Training)->Training:
+    def get_all_trainings(self) -> List[Training]:
+        return self.repository.find_all()
+
+
+    def save_training(self, training: Training) -> Training:
         return self.repository.save_training(training)
+
 
     def format_dataframe(self, dataset: Dataset):
         try:
@@ -211,4 +247,5 @@ class DataTrainingService:
             return AppException('format_data_frame: ' + str(error), 500), None
 
 
-    #TODO: Regra de negócios -> Modelos de treinamento só poderão ser salvos com acurácia acima de 70%
+
+    # TODO: Regra de negócios -> Modelos de treinamento só poderão ser salvos com acurácia acima de 70%

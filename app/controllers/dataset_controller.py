@@ -2,8 +2,8 @@
 
 from flask import Blueprint, request, jsonify
 from app.services.dataset_service import DatasetService
-from app.exceptions import DatasetInvalidoError, DatasetDuplicadoError, AppException
-from exceptions import ResourceNotFoundError
+from app.exceptions import  AppException, ResourceNotFoundError
+
 
 # Cria o Blueprint com prefixo /api/datasets
 dataset_bp = Blueprint('dataset', __name__, url_prefix='/api/dataset')

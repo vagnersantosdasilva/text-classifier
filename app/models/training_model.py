@@ -2,12 +2,11 @@ from app.extensions import db
 from enum import Enum
 import datetime
 
-class TrainingStatus(Enum):
+class TrainingStatus(str, Enum):
     PENDING = "PENDING"       # Aguardando na fila (opcional)
     PROCESSING = "PROCESSING" # Treinamento em andamento
     COMPLETED = "COMPLETED"   # Concluído com sucesso
     FAILED = "FAILED"         # Ocorreu algum erro/parada (antigo 'STOP')
-
 
 class Training(db.Model):
     __tablename__ = 'training_status'
@@ -41,6 +40,9 @@ class Training(db.Model):
 
     #Guardar o modelo de treinamento no banco
     trained_model = db.Column(db.LargeBinary, nullable=True)
+
+    #Guardar a vetorização do dataframe para usar na classificação
+    vectorizer = db.Column(db.LargeBinary, nullable=True)
 
     def to_dict(self):
         """Método auxiliar para quando você precisar retornar isso no Controller"""

@@ -19,6 +19,9 @@ def create_app():
     from app.controllers import data_training_bp
     app.register_blueprint(data_training_bp)
 
+    from app.controllers import classifier_bp
+    app.register_blueprint(classifier_bp)
+
     with app.app_context():
         db.create_all()
 

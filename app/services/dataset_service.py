@@ -21,8 +21,6 @@ class DatasetService:
             if not file_storage or not file_storage.filename:
                 raise DatasetInvalidoError("Arquivo é obrigatório")
 
-            # Se name não for fornecido, usa o nome do arquivo
-
             name = file_storage.filename
 
             # Lê conteúdo
@@ -44,10 +42,8 @@ class DatasetService:
             return self.repository.save(dataset)
 
         except DatasetInvalidoError:
-            # Joga para o controller tratar
             raise
         except Exception as e:
-            # Captura qualquer erro (ex: erro de banco, erro de decodificação, etc.)
             print("=" * 60)
             print("ERRO NO SERVICE:")
             traceback.print_exc()
@@ -65,9 +61,7 @@ class DatasetService:
         return dataset_response
 
     def remove_dataset(self, dataset_id: int) ->bool:
-        #Dataset ou None
         dataset = self.repository.find_by_id(dataset_id)
-        # Verificação de retorno para desencadear a ação
         if dataset:
             self.repository.delete(dataset)
             return True  # Ação executada com sucesso
