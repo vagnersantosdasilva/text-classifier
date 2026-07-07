@@ -96,6 +96,7 @@ def filter_unidecode(lista_de_frases):
     palavras_sem_acentos = [unidecode.unidecode(texto) for (texto) in lista_de_frases]
     return palavras_sem_acentos
 
+
 def remove_stop_words(texts, language='portuguese'):
     stemmer = nltk.RSLPStemmer()
     exclude = set(string.punctuation)

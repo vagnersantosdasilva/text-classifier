@@ -33,9 +33,13 @@ def start_training():
         if not dados or 'id_dataset' not in dados:
             return jsonify({"erro": "O campo 'id_dataset' é obrigatório no JSON"}), 400
 
+        #Obtendo os dados
         dataset_id = dados.get('id_dataset')
+        vectorizer_type = dados.get('vectorizer_type')
+        use_stemmer = dados.get('use_stemmer')
+
         data_training_service = DataTrainingService()
-        training = data_training_service.create_training(dataset_id)
+        training = data_training_service.create_training(dataset_id, vectorizer_type, use_stemmer)
         return jsonify(training.to_dict()), 200
 
     except ResourceNotFoundError as e:

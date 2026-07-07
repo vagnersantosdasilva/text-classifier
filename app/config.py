@@ -19,3 +19,8 @@ class Config:
 
     # Outras configurações podem ser adicionadas aqui
     # SECRET_KEY, etc.
+
+    TRAINING_MAX_WORKERS = int(os.getenv('TRAINING_MAX_WORKERS', '2'))
+
+    # Limite de treinamentos simultâneos ativos POR DATASET (Regra de negócio)
+    MAX_ACTIVE_TRAININGS_PER_DATASET = int(os.getenv('MAX_ACTIVE_TRAININGS_PER_DATASET', '2'))

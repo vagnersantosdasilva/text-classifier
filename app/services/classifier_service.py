@@ -1,14 +1,8 @@
 import pickle
 
-from pandas import DataFrame
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-import utils
-import pandas as pd
 from app.repository import TrainingRepository
 from app.models import Classe, TrainingStatus
 from app.exceptions import TreinamentoError, ResourceNotFoundError
-
 
 class ClassifierService:
     def __init__(self):
@@ -16,6 +10,11 @@ class ClassifierService:
 
     def classify_message(self, class_: Classe) -> Classe:
         try:
+            # 1. Validações iniciais de segurança
+            if not class_.message or not class_.message.strip():
+                class_.classe = "INDETERMINADA"
+                return class_
+
             training = self.training_repository.find_by_id(class_.id_training)
             if not training:
                 raise ResourceNotFoundError(f"Treinamento {class_.id_training} não encontrado.")
@@ -26,13 +25,21 @@ class ClassifierService:
             if not training.trained_model or not training.vectorizer:
                 raise TreinamentoError("Modelo ou Vetorizador ausentes no banco de dados para este treinamento.")
 
-            # RECONSTRÓI O MODELO E O VETORIZADOR CORRETOS
+            # 2. RECONSTRÓI O PIPELINE (Desserialização)
+            # VotingClassifier do scikit-learn
+            # strategy  - Classe customizada (ClassicTfidfStrategy, BagOfWordsStrategy, etc.)
             predictor = pickle.loads(training.trained_model)
-            vectorizer = pickle.loads(training.vectorizer)  # Nome batendo com o modelo do banco
+            strategy = pickle.loads(training.vectorizer)
 
-            # Executa a classificação e atualiza o objeto original
-            predicted_priority = self.classify(class_.message, predictor, vectorizer)
-            class_.classe = predicted_priority
+            # 3. POLIMORFISMO EM AÇÃO
+            # A própria estratégia já sabe o idioma, se usa stemmer e como limpar o texto.
+            # Passamos a mensagem dentro de uma lista porque o scikit-learn espera um iterável.
+            new_text_vector = strategy.transform([class_.message])
+
+            # 4. PREDIÇÃO
+            # O predict retorna um array numpy (ex: ['1']). Pegamos a primeira posição [0]
+            classe_array = predictor.predict(new_text_vector)
+            class_.classe = str(classe_array[0])
 
             return class_
 
@@ -41,20 +48,3 @@ class ClassifierService:
             import traceback
             traceback.print_exc()
             raise TreinamentoError(f"Falha na classificação: {str(e)}")
-
-    def classify(self, message: str, predictor, vectorizer) -> str:
-        if not message or not message.strip():
-            return "INDETERMINADA"  # Evita quebrar com strings vazias
-
-        # Prepara o dado no formato que o pipeline de stop words espera
-        df = pd.DataFrame(data={'description': [message]})
-        docs_news, error = utils.remove_stop_words(df)
-
-        # Garante o fallback caso a remoção de stop words falhe
-        processed_text = docs_news.processed if docs_news is not None else [message]
-
-        new_text_vector = vectorizer.transform(processed_text)
-
-        classe_array = predictor.predict(new_text_vector)
-
-        return str(classe_array[0])

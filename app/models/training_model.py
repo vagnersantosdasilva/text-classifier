@@ -1,3 +1,5 @@
+from numpy.f2py.symbolic import Language
+
 from app.extensions import db
 from enum import Enum
 import datetime
@@ -7,6 +9,11 @@ class TrainingStatus(str, Enum):
     PROCESSING = "PROCESSING" # Treinamento em andamento
     COMPLETED = "COMPLETED"   # Concluído com sucesso
     FAILED = "FAILED"         # Ocorreu algum erro/parada (antigo 'STOP')
+
+class VectorizerType(str, Enum):
+    TF_IDF = "TF_IDF"
+    BAG_OF_WORDS = "BAG_OF_WORDS"
+    WORD2VEC = "WORD2VEC"
 
 class Training(db.Model):
     __tablename__ = 'training_status'
@@ -44,6 +51,26 @@ class Training(db.Model):
     #Guardar a vetorização do dataframe para usar na classificação
     vectorizer = db.Column(db.LargeBinary, nullable=True)
 
+    # Novas colunas mapeadas do banco:
+    vectorizer_type = db.Column(
+        db.Enum(VectorizerType),
+        nullable=False,
+        default=VectorizerType.TF_IDF
+    )
+
+    use_stemmer = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False
+    )
+
+    language = db.Column(
+        db.String(50),
+        nullable=False,
+        default='portuguese'
+
+    )
+
     def to_dict(self):
         """Método auxiliar para quando você precisar retornar isso no Controller"""
         return {
@@ -55,6 +82,8 @@ class Training(db.Model):
             'recall': float(self.recall) if self.recall else None,
             'accuracy_score': float(self.accuracy_score) if self.accuracy_score else None,
             'cross_val_score_mean': float(self.cross_val_score_mean) if self.cross_val_score_mean else None,
+            'vectorizer_type': self.vectorizer_type.value,  # Retorna a string pura
+            'use_stemmer': self.use_stemmer,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
