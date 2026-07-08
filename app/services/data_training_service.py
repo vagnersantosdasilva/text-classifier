@@ -13,7 +13,6 @@ from app.repository.dataset_repository import DatasetRepository
 from sklearn.model_selection import cross_validate, LeaveOneOut
 from sklearn.naive_bayes import MultinomialNB
 from sklearn import tree
-from sklearn.feature_extraction.text import  TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import VotingClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -26,11 +25,8 @@ import pandas as pd
 import io
 import numpy as np
 
-
-
 nltk.download('rslp')
 
-# Dentro do start_training...
 from app.ml import VECTORIZATION_STRATEGY_MAP
 
 class DataTrainingService:
@@ -65,10 +61,7 @@ class DataTrainingService:
             recall = np.mean([round(r, 4) for r in scores['test_recall_macro']])
             accuracy = np.mean([round(r, 4) for r in scores['test_accuracy']])
             f1 = np.mean([round(r, 4) for r in scores['test_f1_macro']])
-            # accuracy =  np.mean(cross_val_score(clf,x,y,cv=cv,  scoring="accuracy"))
-            # precision = np.mean (cross_val_score(clf,x,y,cv=cv,  scoring='precision'))
-            # recall = np.mean (cross_val_score(clf,x,y,cv=cv, scoring='recall'))
-            # f1 = np.mean (cross_val_score(clf,x,y,cv=cv, scoring='f1'))
+
             return accuracy, precision, recall, f1
         else:
             scores = cross_validate(clf, x, y, cv=5, scoring=scoring)
@@ -89,9 +82,6 @@ class DataTrainingService:
 
         if dataset:
             count_training = self.repository.count_active_by_dataset(dataset_id)
-
-            #if count_training >= 1:
-            #   raise TreinamentoError("Existe um treinamento ativo para esse dataset. Aguarde a conclusão")
 
             max_training_active_per_dataset = current_app.config.get('MAX_ACTIVE_TRAININGS_PER_DATASET')
             if count_training >= max_training_active_per_dataset:
@@ -146,7 +136,7 @@ class DataTrainingService:
                     training_status.vectorizer_type, ClassicTfidfStrategy)
 
                 # Instancia a estratégia injetando dinamicamente se quer usar stemmer ou não
-                # A injeção de dependência resolve tudo aqui de uma vez só!
+                # A injeção de dependência resolve tudo aqui
                 strategy_instance = strategy_class(
                     language=training_status.language,  # ex: 'english' ou 'portuguese'
                     use_stemmer=training_status.use_stemmer
@@ -157,22 +147,8 @@ class DataTrainingService:
                 if error_format:
                     raise TreinamentoError(f"Erro no dataframe: {error_format}")
 
-                # 2. O processamento vira uma linha polimórfica pura!
-                #new_content, error_stop_words = utils.remove_stop_words(data_frame)
-
-                #new_content, error_stop_words = utils.remove_stop_words(data_frame)
-
-                # CORREÇÃO: Separar a instância do vetorizador para podermos salvá-la depois
-                #vectorizer_instance = TfidfVectorizer()
-                #x = vectorizer_instance.fit_transform(new_content.processed)
-                #y = new_content.priority
-
-                # A estratégia se vira para aplicar stemmer e vetorizar internamente
-                #x = strategy_instance.fit_transform(new_content.processed)
-                #y = new_content.priority
-
-                # 2 - Agora você não chama mais utils.remove_stop_words. A 'estratégia' cuida de tudo!
-                # Passamos direto os dados brutos extraídos do seu format_dataframe
+                # 2 -  A 'estratégia' cuida de tudo!
+                # Passamos direto os dados brutos extraídos de format_dataframe
                 # TODO: description e priority ainda amarram o modelo . É preciso estudar uma forma de ser independente desse formato
 
                 x = strategy_instance.fit_transform(data_frame['description'].tolist())
@@ -215,7 +191,7 @@ class DataTrainingService:
                     db.session.rollback()
                 except:
                     pass
-                # CORREÇÃO: Atualiza o objeto existente em vez de criar um novo quebrado
+
                 if training_status:
                     try:
                         training_status.status = TrainingStatus.FAILED
@@ -283,7 +259,3 @@ class DataTrainingService:
         except Exception as error:
             # CORREÇÃO: Convertendo o erro explicitamente para string para evitar o TypeError
             return AppException('format_data_frame: ' + str(error), 500), None
-
-
-
-    # TODO: Regra de negócios -> Modelos de treinamento só poderão ser salvos com acurácia acima de 70%

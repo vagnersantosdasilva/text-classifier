@@ -1,4 +1,5 @@
 import pickle
+import unittest
 
 from app.repository import TrainingRepository
 from app.models import Classe, TrainingStatus
@@ -48,3 +49,4 @@ class ClassifierService:
             import traceback
             traceback.print_exc()
             raise TreinamentoError(f"Falha na classificação: {str(e)}")
+

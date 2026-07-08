@@ -1,3 +1,4 @@
+import unittest
 from typing import List
 
 from app.repository.dataset_repository import DatasetRepository
@@ -68,3 +69,5 @@ class DatasetService:
 
         raise ResourceNotFoundError("O dataset não foi encontrado!")
 
+    if __name__ == '__main__':
+        unittest.main()
