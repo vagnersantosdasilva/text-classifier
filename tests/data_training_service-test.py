@@ -1,18 +1,15 @@
 # tests/test_data_training_service.py
 import unittest
 from unittest.mock import MagicMock, patch
-import pandas as pd
 from app import create_app
 from app.services import DataTrainingService
 from app.models import TrainingStatus, Dataset, Training
 from app.exceptions import TreinamentoError
-from sklearn.ensemble import VotingClassifier
 
 
 class TestDataTrainingService(unittest.TestCase):
 
     def setUp(self):
-        # Cria a aplicação Flask real configurada para testes
         self.app = create_app()
         self.app.config['TRAINING_MAX_WORKERS'] = 2
         self.app.config['MAX_ACTIVE_TRAININGS_PER_DATASET'] = 1
@@ -33,8 +30,6 @@ class TestDataTrainingService(unittest.TestCase):
         """Garante que a regra de concorrência máxima de treinamentos ativos do mesmo dataset barre o fluxo"""
         mock_dataset = Dataset(id=1)
         self.mock_dataset_repo.find_by_id.return_value = mock_dataset
-
-        # Força o repositório a dizer que já existem 1 treinamento ativo para esse dataset
         self.mock_repo.count_active_by_dataset.return_value = 1
 
         with self.assertRaises(TreinamentoError) as context:
@@ -51,38 +46,34 @@ class TestDataTrainingService(unittest.TestCase):
         expected_training = Training(id=5, id_dataset=1, status=TrainingStatus.PENDING)
         self.mock_repo.save.return_value = expected_training
 
-        # CORREÇÃO: Mockamos o método diretamente na CLASSE DataTrainingService
         with patch.object(DataTrainingService, 'get_executor') as mock_get_executor:
             mock_executor = MagicMock()
             mock_get_executor.return_value = mock_executor
 
             self.service.create_training(dataset_id=1)
 
-            # Agora sim o mock_executor interceptará a ação!
             mock_executor.submit.assert_called_once()
             args = mock_executor.submit.call_args[0]
             self.assertEqual(args[0], self.service.start_training)
 
-
+    # CORREÇÃO 2: Substituído por dados numéricos balanceados o suficiente para cv=10
     def test_decide_training_with_small_sample(self):
         """Valida se o fluxo de avaliação estatística calcula as métricas numéricas corretas sem gerar NaN"""
-        # Criamos dados sintéticos perfeitos e balanceados de classificação (100 amostras, 20 features)
         from sklearn.datasets import make_classification
-        from sklearn.naive_bayes import GaussianNB  # Usamos Gaussian para dados numéricos densos do generator
+        from sklearn.naive_bayes import GaussianNB
 
-        x, y = make_classification(n_samples=100, n_features=20, random_state=42)
+        # Geramos 120 amostras para garantir que cada classe tenha membros de sobra para o cv=10
+        x, y = make_classification(n_samples=120, n_features=20, random_state=42)
         clf = GaussianNB()
 
         accuracy, precision, recall, f1 = self.service.decide_training(clf, x, y)
 
-        # Valida que todas as métricas retornaram floats matemáticos legítimos
         self.assertIsInstance(accuracy, float)
         self.assertIsInstance(precision, float)
         self.assertIsInstance(recall, float)
         self.assertIsInstance(f1, float)
-
-        # Garante que os valores fazem sentido geométrico
         self.assertTrue(0.0 <= accuracy <= 1.0)
+
 
 if __name__ == '__main__':
     unittest.main()
