@@ -1,9 +1,13 @@
 # app/__init__.py
+from flasgger import Swagger
 from flask import Flask
 from app.extensions import db
 
 def create_app():
     app = Flask(__name__)
+
+    # Inicialização simples do Swagger
+    swagger = Swagger(app)
 
     # Carrega configurações do objeto Config
     from app.config import Config

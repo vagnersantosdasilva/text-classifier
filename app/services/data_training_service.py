@@ -228,6 +228,12 @@ class DataTrainingService:
         return self.repository.save_training(training)
 
 
+    def remove_training(self, training_id: int) :
+        training = self.repository.find_by_id(training_id)
+        if training is None:
+            raise ResourceNotFoundError("Treinamento não encontrado!")
+        self.repository.delete(training)
+
     def format_dataframe(self, dataset: Dataset):
         try:
             if dataset:

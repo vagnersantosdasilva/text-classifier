@@ -2,8 +2,7 @@
 
 from flask import Blueprint, request, jsonify
 from app.services.dataset_service import DatasetService
-from app.exceptions import  AppException, ResourceNotFoundError
-
+from app.exceptions import AppException, ResourceNotFoundError
 
 # Cria o Blueprint com prefixo /api/datasets
 dataset_bp = Blueprint('dataset', __name__, url_prefix='/api/dataset')
@@ -12,11 +11,32 @@ dataset_bp = Blueprint('dataset', __name__, url_prefix='/api/dataset')
 @dataset_bp.route('/', methods=['POST'])
 def upload_dataset():
     """
-    Endpoint para enviar um arquivo CSV e criar um dataset.
-    Espera multipart/form-data com os campos:
-        - name (string)
-        - separator (string, ex: ',')
-        - file (arquivo)
+        Faz upload de um arquivo CSV de amostras e armazena seus metadados e bytes
+        ---
+        tags:
+          - Datasets
+        consumes:
+          - multipart/form-data
+        parameters:
+          - name: name
+            in: formData
+            type: string
+            required: false
+            description: Nome amigável do dataset.
+          - name: separator
+            in: formData
+            type: string
+            required: true
+            description: Caractere separador de colunas do CSV (deve conter exatamente 1 caractere).
+            default: ";"
+          - name: file_data
+            in: formData
+            type: file
+            required: true
+            description: O arquivo bruto contendo obrigatoriamente as colunas 'description' e 'priority'.
+        responses:
+          201:
+            description: Dataset carregado e validado estruturalmente com sucesso.
     """
     try:
         # 1. Extrai os dados da requisição
@@ -57,6 +77,15 @@ def upload_dataset():
 
 @dataset_bp.route('/', methods=['GET'])
 def get_all_datasets():
+    """
+        Lista todos os datasets persistidos na base de dados
+        ---
+        tags:
+          - Datasets
+        responses:
+          200:
+            description: Lista carregada com sucesso.
+    """
     try:
         service = DatasetService()
         datasets_objetos = service.list_datasets()
@@ -72,9 +101,22 @@ def get_all_datasets():
         return jsonify({"erro": "Erro interno no servidor", "detalhe": str(e)}), 500
 
 
-
 @dataset_bp.route('/<int:dataset_id>', methods=['GET'])
 def get_dataset(dataset_id: int):
+    """
+        Recupera um único dataset pelo seu ID de registro
+        ---
+        tags:
+          - Datasets
+        parameters:
+          - name: dataset_id
+            in: path
+            type: integer
+            required: true
+        responses:
+          200:
+            description: Objeto retornado com sucesso.
+    """
     try:
         service = DatasetService()
         dataset = service.get_by_id(dataset_id)
@@ -91,6 +133,20 @@ def get_dataset(dataset_id: int):
 
 @dataset_bp.route('/<int:dataset_id>', methods=['DELETE'])
 def remove_dataset(dataset_id: int):
+    """
+        Remove fisicamente um dataset do banco de dados
+        ---
+        tags:
+          - Datasets
+        parameters:
+          - name: dataset_id
+            in: path
+            type: integer
+            required: true
+        responses:
+          200:
+            description: Exclusão confirmada.
+    """
     try:
         service = DatasetService()
         response = service.remove_dataset(dataset_id)

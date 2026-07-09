@@ -10,7 +10,47 @@ classifier_bp = Blueprint('classifier', __name__, url_prefix='/api/classifier')
 
 
 @classifier_bp.route('/', methods=['POST'])
-def status():
+def classifier():
+    """
+        Classifica uma mensagem de texto usando um modelo treinado
+        ---
+        tags:
+          - Classificação
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              type: object
+              properties:
+                id_training:
+                  type: integer
+                  description: ID do treinamento cujos pesos/pipeline salvos no banco serão usados para predizer.
+                  example: 1
+                message:
+                  type: string
+                  description: O corpo da mensagem/email de texto que precisa ser categorizado.
+                  example: "Minha senha de acesso expirou e o banco de dados retornou erro 500"
+        responses:
+          200:
+            description: Mensagem classificada com sucesso.
+            schema:
+              type: object
+              properties:
+                id_training:
+                  type: integer
+                message:
+                  type: string
+                classe:
+                  type: string
+                  description: A classe predita pelo VotingClassifier.
+          400:
+            description: Campos obrigatórios ausentes no JSON.
+          404:
+            description: O ID do treinamento informado não existe no banco de dados.
+          500:
+            description: Erro interno no processamento.
+        """
     try:
         # 1. Captura o JSON enviado no body
         dados = request.get_json()
